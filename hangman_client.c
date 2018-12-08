@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
   char* host; //ip
   int port;
   int recv_size, recv_val, word_len, num_incorrect;
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE] = {0};
   
   //print how to use
   if (argc < 3) {
@@ -69,6 +69,13 @@ int main(int argc, char** argv) {
   recv_size = recv(sockfd, (char *)& buffer, 1, 0);
   recv_val = buffer[0];
 
+  if (recv_val > 0) {
+    recv(sockfd, buffer, recv_val, 0);
+    buffer[recv_val] = '\0';
+    printf("%s", buffer);
+    return 1;
+  }
+
   //begin game
   printf("Ready to start game? (y/n): ");
   fflush(stdout);
@@ -83,12 +90,12 @@ int main(int argc, char** argv) {
   char signal = 0;
   send(sockfd, &signal, 1, 0);
 
-  //TODO: Game variable length limiters
-
   //start game
   while(1) {
     printf("Letter to guess: ");
     fgets(buffer, BUFFER_SIZE, stdin);
+
+    buffer[strcspn(buffer, "\n")] = 0;
 
     //if the string is one character, continue
     if (strlen(buffer) == 1 && isalpha(buffer[0])) {
