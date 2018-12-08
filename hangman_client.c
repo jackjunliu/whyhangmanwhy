@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
   }
 
   //test to see if it reaches here
-  printf("test");
+  //printf("test");
   
   struct sockaddr_in server;
   memset(&server, 0, sizeof(server));
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
   //send empty message to the server to begin the game
   char signal = 0;
-  send(sockfd, &signal, 1, MSG_NOSIGNAL);
+  send(sockfd, &signal, 1, 0);
 
   //TODO: Game variable length limiters
 
@@ -99,6 +99,44 @@ int main(int argc, char** argv) {
       send(sockfd, buffer, 2, 0);
       //receive response
       recv(sockfd, buffer, 1, 0);
+
+      recv_val = buffer[0];
+      if (recv_val == 0) {
+
+        //receive stuff from server
+        //word length
+        recv(sockfd, buffer, 1, 0);
+        word_len = buffer[0];
+
+        //number incorrect
+        recv(sockfd, buffer, 1, 0);
+        num_incorrect = buffer[0];
+
+        //each word
+        recv(sockfd, buffer, word_len, 0);
+        buffer[word_len] = '\0';
+        printf("%s\n", buffer);
+
+        //if incorrect**
+        printf("Incorrect Guesses: ");
+
+        //after first guess
+        if (num_incorrect > 0) {
+          recv(sockfd, buffer, num_incorrect, 0);
+          buffer[num_incorrect] = '\0';
+          printf("%s", buffer);
+        }
+        //spacing
+        printf("\n\n");
+      } else {
+        recv(sockfd, buffer, recv_val, 0);
+        buffer[recv_val] = '\0';
+        printf("%s\n", buffer);
+        return 0;
+      }
+    } //not one letter guess
+    else {
+      printf("Please only enter one letter.\n");
     }
   }
   
