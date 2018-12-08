@@ -15,10 +15,12 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <time.h> //used for time
+#include <ctype.h>
 
 #define BUFFER_SIZE 128
 
 char MAX_OVERLOAD = 16;
+char ZERO = 0; //since when we send messages we need to access the address of it (line 191, 272)
 
 //usage error
 void usage() {
@@ -163,118 +165,118 @@ int main(int argc, char** argv) {
         maxSd = clientSockfd[i];
       }
     }
-  }
-  sockAct = select(maxSd+1, &readfds, NULL, NULL, NULL);
-  if((sockAct < 0)&&(errno != EINTR)){
-    printf("select error\n");
-  }
-  if(FD_ISSET(sockfd, &readfds)){
-    client_sockfd = accept(sockfd, (struct sockaddr *)&server, (socklen_t*)&addressLength);
-    if(client_sockfd < 0){
-      perror("accept failure");
-      exit(0); 
+    sockAct = select(maxSd+1, &readfds, NULL, NULL, NULL);
+    if((sockAct < 0)&&(errno != EINTR)){
+      printf("select error\n");
     }
-    if(numberClients < 3){
-      for(int i = 0; i < 3; i++){
-      	//if no client, and accessed
-      	if(clientSockfd[i] == 0){
-      	  clientSockfd[i] = client_sockfd;
-      	  int randomValue = rand() % wordCount;
-      	  int wordLength = strlen(words[randomValue]);
-      	  clientsWord[i] = randomValue;
-          memset(clientsWrongGuess[i], '\0', sizeof(char) * 7); //seven wrong guesses
-      	  memset(clientsString[i], '_', sizeof(char) * wordLength);
-      	  memset(clientsString[i] + wordLength, '\0', sizeof(char) * (9 - wordLength));
-      	  numberClients++;
+    if(FD_ISSET(sockfd, &readfds)){
+      client_sockfd = accept(sockfd, (struct sockaddr *)&server, (socklen_t*)&addressLength);
+      if(client_sockfd < 0){
+        perror("accept failure");
+        exit(0); 
+      }
+      if(numberClients < 3){
+        for(int i = 0; i < 3; i++){
+        	//if no client, and accessed
+        	if(clientSockfd[i] == 0){
+        	  clientSockfd[i] = client_sockfd;
+        	  int randomValue = rand() % wordCount;
+        	  int wordLength = strlen(words[randomValue]);
+        	  clientsWord[i] = randomValue;
+            memset(clientsWrongGuess[i], '\0', sizeof(char) * 7); //seven wrong guesses
+        	  memset(clientsString[i], '_', sizeof(char) * wordLength);
+        	  memset(clientsString[i] + wordLength, '\0', sizeof(char) * (9 - wordLength));
+        	  numberClients++;
 
-      	  send(client_sockfd, 0, 1, 0);
+        	  send(client_sockfd, &ZERO, 1, 0);
 
-      	  break;
-      	}
+        	  break;
+        	}
+        }
+      }
+      
+      //more than 3 clients wanting to get in 
+      else{
+        send(client_sockfd, &MAX_OVERLOAD, 1,0);
+        
+        send(client_sockfd, "server-overloaded", MAX_OVERLOAD, 0);
       }
     }
-    
-    //more than 3 clients wanting to get in 
-    else{
-      send(client_sockfd, &MAX_OVERLOAD, 1,0);
-      
-      send(client_sockfd, "server-overloaded", MAX_OVERLOAD, 0);
-    }
-  }
 
-  for (int i = 0; i < 3; i++) {
-    if (FD_ISSET(clientSockfd[i], &readfds)) {
-      recvSize = recv(clientSockfd[i], buffer, 1, 0);
-      if (recvSize == 0) {
-      	close(clientSockfd[i]);
-      	clientSockfd[i] = 0;
-        numberClients--;
-      } else {
+    for (int i = 0; i < 3; i++) {
+      if (FD_ISSET(clientSockfd[i], &readfds)) {
+        recvSize = recv(clientSockfd[i], buffer, 1, 0);
+        if (recvSize == 0) {
+        	close(clientSockfd[i]);
+        	clientSockfd[i] = 0;
+          numberClients--;
+        } else {
 
-        messageLength = buffer[0]; //flag
+          messageLength = buffer[0]; //flag
 
-        //no message, then quit
-      	if (messageLength == 0) {
-      	  break;
-      	}
+          //no message, then quit
+        	if (messageLength == 0) {
+        	  break;
+        	}
 
-      	//get client socket and the message
-      	recv(clientSockfd[i], buffer, messageLength, 0);
-      	buffer[messageLength] = '\0';
-      	found = 0;
+        	//get client socket and the message
+        	recv(clientSockfd[i], buffer, messageLength, 0);
+        	buffer[messageLength] = '\0';
+        	found = 0;
 
-      	//decide on what to do with data
-      	if (strchr(clientsString[i], buffer[0]) == NULL) {
-      	  found = replace_chars(clientsString[i], words[clientsWord[i]], buffer[0]);
-      	}
+        	//decide on what to do with data
+        	if (strchr(clientsString[i], buffer[0]) == NULL) {
+        	  found = replace_chars(clientsString[i], words[clientsWord[i]], buffer[0]);
+        	}
 
-      	if (found == 0) {
-      	  for (int j = 0; j < 7; j++){
-      	    if (clientsWrongGuess[i][j] == '\0') {
-      	      clientsWrongGuess[i][j] = buffer[0];
-      	      break;
-      	    }
-      	  }
-      	}
+        	if (found == 0) {
+        	  for (int j = 0; j < 7; j++){
+        	    if (clientsWrongGuess[i][j] == '\0') {
+        	      clientsWrongGuess[i][j] = buffer[0];
+        	      break;
+        	    }
+        	  }
+        	}
 
-      	//States depending on user guesses
-      	if(strlen(clientsWrongGuess[i])>5){
-      	  messageSize = 20;
+        	//States depending on user guesses
+        	if(strlen(clientsWrongGuess[i])>5){
+        	  messageSize = 20;
 
-      	  send(clientSockfd[i], &messageSize, 1, 0);
-      	  send(clientSockfd[i], "You lose.\n", 10, 0);
-      	  send(clientSockfd[i], "Game over!", 10, 0);
+        	  send(clientSockfd[i], &messageSize, 1, 0);
+        	  send(clientSockfd[i], "You lose.\n", 10, 0);
+        	  send(clientSockfd[i], "Game over!", 10, 0);
 
-      	  close(clientSockfd[i]);
+        	  close(clientSockfd[i]);
 
-      	  clientSockfd[i] = 0;
-      	  numberClients--; 
-      	}
-      	else if(strcmp(words[clientsWord[i]], clientsString[i]) == 0){
-      	  int messageSize = 13 + strlen(clientsString[i]) + 1 + 20;
-      	  send(clientSockfd[i], &messageSize, 1, 0);
-      	  send(clientSockfd[i], "The word was ", 13, 0);
-      	  send(clientSockfd[i], clientsString[i], strlen(clientsString[i]), 0); 
-      	  send(clientSockfd[i], "\n", 1,0);
-      	  send(clientSockfd[i], "You win!\n", 9,0);
-      	  send(clientSockfd[i], "Game over!", 10, 0);
+        	  clientSockfd[i] = 0;
+        	  numberClients--; 
+        	}
+        	else if(strcmp(words[clientsWord[i]], clientsString[i]) == 0){
+        	  int messageSize = 13 + strlen(clientsString[i]) + 1 + 20;
+        	  send(clientSockfd[i], &messageSize, 1, 0);
+        	  send(clientSockfd[i], "The word was ", 13, 0);
+        	  send(clientSockfd[i], clientsString[i], strlen(clientsString[i]), 0); 
+        	  send(clientSockfd[i], "\n", 1,0);
+        	  send(clientSockfd[i], "You win!\n", 9,0);
+        	  send(clientSockfd[i], "Game over!", 10, 0);
 
-      	  close(clientSockfd[i]);
+        	  close(clientSockfd[i]);
 
-      	  clientSockfd[i] = 0;
-      	  numberClients--; 
-      	}
-      	else {
-      	  int wordLen = strlen(clientsString[i]);
-      	  int numWrongGuesses = strlen(clientsWrongGuess[i]);
+        	  clientSockfd[i] = 0;
+        	  numberClients--; 
+        	}
+        	else {
+        	  int wordLen = strlen(clientsString[i]);
+        	  int numWrongGuesses = strlen(clientsWrongGuess[i]);
 
-      	  send(clientSockfd[i], 0, 1, 0);
-      	  send(clientSockfd[i], &wordLen, 1, 0);
-      	  send(clientSockfd[i], &numWrongGuesses, 1, 0);
-      	  send(clientSockfd[i], clientsString[i], wordLen, 0);
-      	  send(clientSockfd[i], clientsWrongGuess[i], numWrongGuesses, 0); 
-      	       
-      	}
+        	  send(clientSockfd[i], &ZERO, 1, 0);
+        	  send(clientSockfd[i], &wordLen, 1, 0);
+        	  send(clientSockfd[i], &numWrongGuesses, 1, 0);
+        	  send(clientSockfd[i], clientsString[i], wordLen, 0);
+        	  send(clientSockfd[i], clientsWrongGuess[i], numWrongGuesses, 0); 
+        	       
+        	}
+        }
       }
     }
   }
